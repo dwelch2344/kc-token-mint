@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      POSTGRES_DB: ${DATABASE_NAME:-keycloak}
+    ports:
+      - "${DATABASE_EXPOSED_PORT:-5959}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql
+
+  app:
+    image: ${KEYCLOAK_IMAGE_REGISTRY:-quay.io/keycloak/keycloak}:${KEYCLOAK_IMAGE_TAG:-26.5.0}
+    environment:
+      # Database configuration
+      KC_DB: postgres
+      KC_DB_URL_HOST: db
+      KC_DB_URL_DATABASE: ${DATABASE_NAME:-keycloak}
+      KC_DB_USERNAME: ${DATABASE_USERNAME:-postgres}
+      KC_DB_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+
+      # Bootstrap admin user
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-admin}
+
+      # TODO: don't do HTTPS for local dev
+
+    command:
+      - start
+      # - --features=${KEYCLOAK_FEATURES:-oid4vc-vci}
+
+    depends_on:
+      - db
+
+    ports:
+      - "${KEYCLOAK_HTTPS_PORT:-8443}:${KEYCLOAK_HTTPS_PORT:-8443}"
+
+volumes:
+  db_data:
