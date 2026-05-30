@@ -1,4 +1,4 @@
-package com.example.keycloak.mint;
+package com.example.keycloak.mint.audit;
 
 import org.keycloak.events.EventBuilder;
 import org.keycloak.events.EventType;

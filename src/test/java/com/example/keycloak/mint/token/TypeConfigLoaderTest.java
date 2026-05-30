@@ -1,4 +1,4 @@
-package com.example.keycloak.mint;
+package com.example.keycloak.mint.token;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

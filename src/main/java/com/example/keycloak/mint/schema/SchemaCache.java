@@ -1,4 +1,4 @@
-package com.example.keycloak.mint;
+package com.example.keycloak.mint.schema;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;

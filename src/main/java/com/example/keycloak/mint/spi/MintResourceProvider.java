@@ -1,5 +1,12 @@
-package com.example.keycloak.mint;
+package com.example.keycloak.mint.spi;
 
+import com.example.keycloak.mint.audit.MintEventLogger;
+import com.example.keycloak.mint.resource.BearerAuthenticator;
+import com.example.keycloak.mint.resource.MintResource;
+import com.example.keycloak.mint.schema.SchemaFetcher;
+import com.example.keycloak.mint.token.TokenBuilder;
+import com.example.keycloak.mint.token.TypeConfigLoader;
+import com.example.keycloak.mint.validation.PayloadValidator;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.services.managers.AppAuthManager;

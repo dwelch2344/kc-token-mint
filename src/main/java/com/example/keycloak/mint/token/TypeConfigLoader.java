@@ -1,4 +1,4 @@
-package com.example.keycloak.mint;
+package com.example.keycloak.mint.token;
 
 import org.keycloak.models.ClientScopeModel;
 import org.keycloak.models.KeycloakSession;

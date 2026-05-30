@@ -1,4 +1,4 @@
-package com.example.keycloak.mint;
+package com.example.keycloak.mint.schema;
 
 public class SchemaFetchException extends RuntimeException {
 

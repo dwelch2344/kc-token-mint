@@ -1,1 +1,1 @@
-com.example.keycloak.mint.MintResourceProviderFactory
+com.example.keycloak.mint.spi.MintResourceProviderFactory

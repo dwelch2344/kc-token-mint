@@ -1,5 +1,6 @@
-package com.example.keycloak.mint;
+package com.example.keycloak.mint.validation;
 
+import com.example.keycloak.mint.schema.FetchedSchema;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;

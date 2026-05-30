@@ -1,4 +1,4 @@
-package com.example.keycloak.mint;
+package com.example.keycloak.mint.resource;
 
 import org.keycloak.services.managers.AuthenticationManager;
 

@@ -1,4 +1,4 @@
-package com.example.keycloak.mint;
+package com.example.keycloak.mint.token;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.keycloak.common.util.Time;

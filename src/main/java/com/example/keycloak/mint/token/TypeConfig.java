@@ -1,4 +1,4 @@
-package com.example.keycloak.mint;
+package com.example.keycloak.mint.token;
 
 import java.net.URI;
 import java.time.Duration;
