@@ -1,0 +1,8 @@
+{
+  "themes": [
+    {
+      "name": "mint-account",
+      "types": ["account"]
+    }
+  ]
+}

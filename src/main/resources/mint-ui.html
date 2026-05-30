@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Token Mint — {{REALM}}</title>
+  <script>
+    // Embedded mode (inside the Account Console iframe): hide our own chrome and
+    // adopt the host's PatternFly stylesheets so we match the surrounding app.
+    // Persisted across the OIDC redirect, which strips the query string.
+    (function () {
+      try {
+        if (new URLSearchParams(location.search).has("embed"))
+          sessionStorage.setItem("_mint_embed", "1");
+        if (sessionStorage.getItem("_mint_embed") === "1") {
+          document.documentElement.classList.add("embed");
+          // Borrow the account console's stylesheets (same origin) so we inherit
+          // the RedHat fonts and PatternFly design tokens.
+          var sheets = window.parent.document.querySelectorAll('link[rel="stylesheet"]');
+          for (var i = 0; i < sheets.length; i++) {
+            var l = document.createElement("link");
+            l.rel = "stylesheet";
+            l.href = sheets[i].href;
+            document.head.appendChild(l);
+          }
+          // Follow the host's light/dark theme (PatternFly toggles the
+          // `pf-v5-theme-dark` class on <html>) and keep in sync if it changes.
+          var parentHtml = window.parent.document.documentElement;
+          var syncTheme = function () {
+            document.documentElement.classList.toggle(
+              "pf-v5-theme-dark", parentHtml.classList.contains("pf-v5-theme-dark"));
+          };
+          syncTheme();
+          new MutationObserver(syncTheme).observe(parentHtml, { attributes: true, attributeFilter: ["class"] });
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1214;
+      --panel: #1b1d21;
+      --panel-2: #212427;
+      --border: #444548;
+      --text: #e0e0e0;
+      --muted: #aaabac;
+      --input-bg: #36373a;
+      --input-line: #8a8d90;
+      --primary: #0066cc;
+      --primary-hover: #004d99;
+      --link: #1fa7ff;
+      --ok: #5ba352;
+      --danger: #fa5252;
+      --req: #c9190b;
+      --radius: 4px;
+      --mono: 'RedHatMono', 'RedHat Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: 'RedHatText', 'Red Hat Text', 'Helvetica Neue', Arial, sans-serif;
+      --display: 'RedHatDisplay', 'Red Hat Display', 'RedHatText', var(--sans);
+    }
+
+    body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.5; }
+
+    header {
+      background: #151515; border-bottom: 1px solid var(--border);
+      padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo h1 { font-family: var(--display); font-size: 18px; font-weight: 500; color: var(--text); }
+    .logo .realm { font-size: 12px; color: var(--muted); background: var(--panel-2); padding: 2px 9px; border-radius: 12px; }
+    .user-area { display: flex; align-items: center; gap: 12px; }
+    .user-name { font-size: 14px; color: var(--muted); }
+
+    button {
+      cursor: pointer; font-family: var(--sans); font-size: 14px; font-weight: 400;
+      border: 1px solid transparent; border-radius: var(--radius); padding: 6px 16px;
+      transition: background-color .12s ease;
+    }
+    button:disabled { opacity: .55; cursor: default; }
+    button.primary { background: var(--primary); color: #fff; }
+    button.primary:hover:not(:disabled) { background: var(--primary-hover); }
+    button.secondary { background: transparent; color: var(--link); border-color: var(--border); }
+    button.secondary:hover:not(:disabled) { background: rgba(255,255,255,.06); }
+
+    main { max-width: 720px; margin: 32px auto; padding: 0 24px; }
+
+    .section { margin-bottom: 32px; }
+    .section + .section { border-top: 1px solid var(--border); padding-top: 28px; }
+    h2 { font-family: var(--display); font-size: 20px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+
+    .field { margin-bottom: 20px; }
+    label { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    label .req { color: var(--req); margin-left: 3px; font-weight: 600; }
+
+    input, textarea {
+      width: 100%; background: var(--input-bg); color: var(--text);
+      border: 0; border-radius: 0; box-shadow: inset 0 -1px 0 0 var(--input-line);
+      padding: 7px 12px; font-size: 14px; font-family: inherit; outline: none;
+    }
+    input:focus, textarea:focus { box-shadow: inset 0 -2px 0 0 var(--primary); }
+    textarea { resize: vertical; min-height: 150px; font-family: var(--mono); font-size: 13px; line-height: 1.55; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .actions { margin-top: 24px; }
+
+    #login-section { text-align: center; padding: 24px 0; }
+    #login-section .subtitle { margin-bottom: 24px; }
+
+    .result-panel {
+      background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px;
+    }
+    pre {
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px; font-size: 12.5px; font-family: var(--mono); line-height: 1.5;
+      overflow-x: auto; white-space: pre-wrap; word-break: break-all; color: var(--text);
+    }
+    pre.error { border-color: #7d1007; color: #ff8a80; }
+    pre.success { border-color: #1f4d1a; }
+    .result-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 6px; }
+    .meta { display: flex; gap: 32px; }
+    .meta-item .k { color: var(--muted); display: block; font-size: 12px; margin-bottom: 2px; }
+    .meta-item .v { color: var(--ok); font-family: var(--mono); font-size: 13px; }
+
+    .spinner {
+      display: inline-block; width: 13px; height: 13px;
+      border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
+      border-radius: 50%; animation: spin .65s linear infinite; vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Embedded inside the Account Console — drop our own chrome and blend in. */
+    html.embed header { display: none; }
+    html.embed main { margin: 0 auto; padding: 24px; max-width: 860px; }
+    html.embed, html.embed body { min-height: auto; background: transparent !important; }
+
+    /* Follow the host's PatternFly light/dark theme instead of hard-coded darks. */
+    html.embed {
+      --bg: transparent;
+      --panel: var(--pf-v5-global--BackgroundColor--100);
+      --panel-2: var(--pf-v5-global--BackgroundColor--200);
+      --border: var(--pf-v5-global--BorderColor--100);
+      --text: var(--pf-v5-global--Color--100);
+      --muted: var(--pf-v5-global--Color--200);
+      --input-bg: var(--pf-v5-global--BackgroundColor--200);
+      --input-line: var(--pf-v5-global--BorderColor--100);
+      --primary: var(--pf-v5-global--primary-color--100);
+      --primary-hover: var(--pf-v5-global--primary-color--200);
+      --link: var(--pf-v5-global--primary-color--100);
+      --ok: var(--pf-v5-global--success-color--100, #5ba352);
+    }
+    /* code/result blocks need a visible surface even though --bg is transparent */
+    html.embed pre { background: var(--pf-v5-global--BackgroundColor--200); }
+    html.embed pre.error { border-color: var(--pf-v5-global--danger-color--100); color: var(--pf-v5-global--danger-color--100); }
+    html.embed pre.success { border-color: var(--pf-v5-global--success-color--100); }
+    html.embed button.secondary:hover:not(:disabled) { background: var(--pf-v5-global--BackgroundColor--200); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <h1>Token Mint</h1>
+    <span class="realm">{{REALM}}</span>
+  </div>
+  <div class="user-area" id="user-area">
+    <button class="primary" onclick="login()">Log in</button>
+  </div>
+</header>
+
+<main>
+  <div class="section" id="login-section">
+    <h2>Token Mint</h2>
+    <p class="subtitle">Log in to mint scoped, signed tokens from this realm.</p>
+    <button class="primary" onclick="login()">Log in with Keycloak</button>
+  </div>
+
+  <div id="mint-section" style="display:none">
+    <div class="section">
+      <h2>Mint a token</h2>
+      <p class="subtitle">Issue a short-lived JSON Web Token signed by this realm's key.</p>
+      <div class="row">
+        <div class="field">
+          <label for="f-type">Type<span class="req">*</span></label>
+          <input id="f-type" value="capability">
+        </div>
+        <div class="field">
+          <label for="f-audience">Audience<span class="req">*</span></label>
+          <input id="f-audience" value="test-service">
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-ttl">TTL (seconds)<span class="req">*</span></label>
+        <input id="f-ttl" type="number" value="300" min="1" max="3600">
+      </div>
+      <div class="field">
+        <label for="f-payload">Payload (JSON)<span class="req">*</span></label>
+        <textarea id="f-payload">{"resource": "orders", "operations": ["read", "write"]}</textarea>
+      </div>
+      <div class="actions">
+        <button class="primary" id="mint-btn" onclick="doMint()">Mint token</button>
+      </div>
+    </div>
+
+    <div class="section" id="result-card" style="display:none">
+      <h2>Result</h2>
+      <div class="result-panel" id="result-body"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+  const REALM    = '{{REALM}}';
+  const CLIENT   = 'mint-ui';
+  const SCOPES   = 'openid mint:capability';
+  const BASE     = window.location.origin;
+  const PAGE_URI = BASE + window.location.pathname;
+  const AUTH_URL  = `${BASE}/realms/${REALM}/protocol/openid-connect/auth`;
+  const TOKEN_URL = `${BASE}/realms/${REALM}/protocol/openid-connect/token`;
+  const LOGOUT_URL = `${BASE}/realms/${REALM}/protocol/openid-connect/logout`;
+  const MINT_URL  = PAGE_URI.replace(/\/ui$/, '/token');
+
+  // ── PKCE helpers ─────────────────────────────────────────────────────────────
+  const rnd = (n = 64) => {
+    const b = new Uint8Array(n); crypto.getRandomValues(b);
+    return btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  };
+  const s256 = async v => {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v));
+    return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  };
+  const decodeJwt = t => { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); } catch { return null; } };
+
+  // ── Token storage ─────────────────────────────────────────────────────────────
+  const save  = t => sessionStorage.setItem('_mt', JSON.stringify(t));
+  const load  = ()  => { const s = sessionStorage.getItem('_mt'); return s ? JSON.parse(s) : null; };
+  const clear = ()  => { sessionStorage.removeItem('_mt'); sessionStorage.removeItem('_pkce'); };
+
+  async function freshToken() {
+    const t = load();
+    if (!t) return null;
+    const c = decodeJwt(t.access_token);
+    if (c && c.exp - Date.now()/1000 > 30) return t;
+    if (!t.refresh_token) { clear(); return null; }
+    const r = await fetch(TOKEN_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({grant_type:'refresh_token', client_id:CLIENT, refresh_token:t.refresh_token}) });
+    if (!r.ok) { clear(); return null; }
+    const fresh = await r.json(); save(fresh); return fresh;
+  }
+
+  // ── Auth flow ─────────────────────────────────────────────────────────────────
+  async function login() {
+    const verifier = rnd(64);
+    sessionStorage.setItem('_pkce', verifier);
+    const p = new URLSearchParams({
+      response_type:'code', client_id:CLIENT, redirect_uri:PAGE_URI,
+      scope:SCOPES, state: rnd(16),
+      code_challenge: await s256(verifier), code_challenge_method:'S256'
+    });
+    window.location.href = AUTH_URL + '?' + p;
+  }
+
+  function logout() {
+    const t = load(); clear();
+    if (t?.refresh_token)
+      fetch(LOGOUT_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({client_id:CLIENT, refresh_token:t.refresh_token}) });
+    showLogin();
+  }
+
+  async function handleCallback() {
+    const p = new URLSearchParams(window.location.search);
+    const code = p.get('code');
+    if (!code) return false;
+    const verifier = sessionStorage.getItem('_pkce');
+    if (!verifier) return false;
+    const r = await fetch(TOKEN_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({grant_type:'authorization_code', client_id:CLIENT,
+        redirect_uri:PAGE_URI, code, code_verifier:verifier}) });
+    if (!r.ok) return false;
+    save(await r.json());
+    window.history.replaceState({}, '', window.location.pathname);
+    return true;
+  }
+
+  // ── UI state ──────────────────────────────────────────────────────────────────
+  function showLogin() {
+    document.getElementById('login-section').style.display = '';
+    document.getElementById('mint-section').style.display = 'none';
+    document.getElementById('user-area').innerHTML =
+      '<button class="primary" onclick="login()">Log in</button>';
+  }
+
+  function showMint(username) {
+    document.getElementById('login-section').style.display = 'none';
+    document.getElementById('mint-section').style.display = '';
+    document.getElementById('user-area').innerHTML =
+      `<span class="user-name">${username}</span>` +
+      `<button class="secondary" onclick="logout()">Log out</button>`;
+  }
+
+  // ── Mint action ───────────────────────────────────────────────────────────────
+  async function doMint() {
+    const btn = document.getElementById('mint-btn');
+    const resultCard = document.getElementById('result-card');
+    const resultBody = document.getElementById('result-body');
+    btn.innerHTML = '<span class="spinner"></span>Minting…'; btn.disabled = true;
+    resultCard.style.display = ''; resultBody.innerHTML = '';
+    try {
+      let payload;
+      try { payload = JSON.parse(document.getElementById('f-payload').value); }
+      catch { throw new Error('Payload is not valid JSON'); }
+
+      const tokens = await freshToken();
+      if (!tokens) { showLogin(); return; }
+
+      const res = await fetch(MINT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + tokens.access_token },
+        body: JSON.stringify({
+          type:        document.getElementById('f-type').value.trim(),
+          payload,
+          ttl_seconds: parseInt(document.getElementById('f-ttl').value, 10),
+          audience:    document.getElementById('f-audience').value.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        resultBody.innerHTML = `<pre class="error">${JSON.stringify(data, null, 2)}</pre>`;
+        return;
+      }
+
+      const claims = decodeJwt(data.token);
+      const expiresAt = new Date(data.expires_at * 1000).toLocaleString();
+      resultBody.innerHTML = `
+        <div class="meta">
+          <div class="meta-item"><span class="k">jti</span><span class="v">${data.jti}</span></div>
+          <div class="meta-item"><span class="k">expires</span><span class="v">${expiresAt}</span></div>
+        </div>
+        <div class="result-label">Minted token claims</div>
+        <pre class="success">${JSON.stringify(claims, null, 2)}</pre>
+        <div class="result-label">Raw JWT</div>
+        <pre>${data.token}</pre>`;
+    } catch(e) {
+      resultBody.innerHTML = `<pre class="error">${e.message}</pre>`;
+    } finally {
+      btn.innerHTML = 'Mint token'; btn.disabled = false;
+    }
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────────
+  const isEmbedded = document.documentElement.classList.contains("embed");
+
+  (async () => {
+    const authed = await handleCallback() || !!(await freshToken());
+    if (authed) {
+      sessionStorage.removeItem("_mint_sso_tried");
+      const t = load();
+      const id = decodeJwt(t.id_token);
+      const ac = decodeJwt(t.access_token);
+      const username = id?.preferred_username || ac?.preferred_username || ac?.sub || 'user';
+      showMint(username);
+      return;
+    }
+    // Embedded in the Account Console: the user already has an SSO session, so
+    // kick off login automatically (returns without a password prompt). Guarded
+    // by a one-shot flag so a failed exchange falls back to the button instead
+    // of looping.
+    if (isEmbedded && sessionStorage.getItem("_mint_sso_tried") !== "1") {
+      sessionStorage.setItem("_mint_sso_tried", "1");
+      login();
+      return;
+    }
+    showLogin();
+  })();
+</script>
+</body>
+</html>

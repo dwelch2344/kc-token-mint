@@ -1,12 +1,32 @@
 {
   "realm": "mint-demo",
   "enabled": true,
+  "accountTheme": "mint-account",
+  "verifiableCredentialsEnabled": true,
+  "attributes": {
+    "preAuthorizedCodeLifespanS": "300"
+  },
   "sslRequired": "none",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": false,
   "editUsernameAllowed": false,
+
+  "components": {
+    "org.keycloak.keys.KeyProvider": [
+      {
+        "name": "ecdsa-issuer-key",
+        "providerId": "ecdsa-generated",
+        "config": {
+          "priority": ["200"],
+          "ecdsaEllipticCurveKey": ["P-256"],
+          "active": ["true"],
+          "enabled": ["true"]
+        }
+      }
+    ]
+  },
 
   "roles": {
     "realm": [
@@ -15,8 +35,10 @@
         "description": "${role_default-roles}",
         "composite": true,
         "composites": {
-          "realm": ["offline_access"],
-          "client": {}
+          "realm": ["offline_access", "uma_authorization"],
+          "client": {
+            "account": ["manage-account", "view-profile"]
+          }
         },
         "clientRole": false
       },
@@ -39,7 +61,13 @@
         "clientRole": false
       }
     ],
-    "client": {}
+    "client": {
+      "account": [
+        { "name": "view-profile", "description": "${role_view-profile}", "composite": false, "clientRole": true },
+        { "name": "manage-account", "description": "${role_manage-account}", "composite": false, "clientRole": true },
+        { "name": "delete-account", "description": "${role_delete-account}", "composite": false, "clientRole": true }
+      ]
+    }
   },
 
   "clientScopes": [
@@ -47,30 +75,22 @@
       "name": "openid",
       "description": "OpenID Connect scope",
       "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      },
+      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" },
       "protocolMappers": [
         {
           "name": "sub",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-sub-mapper",
           "consentRequired": false,
-          "config": {
-            "access.token.claim": "true"
-          }
+          "config": { "access.token.claim": "true", "id.token.claim": "true" }
         }
       ]
     },
     {
       "name": "roles",
-      "description": "OpenID Connect scope for add user roles information to the token",
+      "description": "OpenID Connect scope for add user roles to the token",
       "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "false",
-        "display.on.consent.screen": "true"
-      },
+      "attributes": { "include.in.token.scope": "false", "display.on.consent.screen": "true" },
       "protocolMappers": [
         {
           "name": "realm roles",
@@ -97,6 +117,13 @@
             "jsonType.label": "String",
             "multivalued": "true"
           }
+        },
+        {
+          "name": "audience resolve",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-resolve-mapper",
+          "consentRequired": false,
+          "config": { "access.token.claim": "true" }
         }
       ]
     },
@@ -104,28 +131,60 @@
       "name": "profile",
       "description": "OpenID Connect built-in scope: profile",
       "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "true"
-      }
+      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "true" },
+      "protocolMappers": [
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        }
+      ]
     },
     {
       "name": "email",
       "description": "OpenID Connect built-in scope: email",
       "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "true"
-      }
+      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "true" },
+      "protocolMappers": [
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "email",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "email",
+            "jsonType.label": "String"
+          }
+        }
+      ]
     },
     {
       "name": "web-origins",
       "description": "OpenID Connect scope for web origins",
       "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "false",
-        "display.on.consent.screen": "false"
-      }
+      "attributes": { "include.in.token.scope": "false", "display.on.consent.screen": "false" },
+      "protocolMappers": [
+        {
+          "name": "allowed web origins",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-allowed-origins-mapper",
+          "consentRequired": false,
+          "config": {}
+        }
+      ]
     },
     {
       "name": "offline_access",
@@ -149,36 +208,131 @@
         "allowed-audiences": "test-service",
         "schema-content-type": "application/json"
       }
+    },
+    {
+      "name": "IdentityCredential",
+      "description": "Identity verifiable credential (OID4VCI, SD-JWT VC)",
+      "protocol": "oid4vc",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false",
+        "vc.credential_configuration_id": "IdentityCredential",
+        "vc.credential_identifier": "IdentityCredential",
+        "vc.format": "dc+sd-jwt",
+        "vc.verifiable_credential_type": "https://credentials.example.com/identity_credential",
+        "vc.supported_credential_types": "identity_credential",
+        "vc.credential_contexts": "https://credentials.example.com/identity_credential",
+        "vc.expiry_in_seconds": "31536000",
+        "vc.include_in_metadata": "true",
+        "vc.credential_signing_alg": "ES256",
+        "vc.cryptographic_binding_methods_supported": "jwk",
+        "vc.binding_required": "true",
+        "vc.binding_methods_supported": "jwk",
+        "vc.binding_required_proof_types": "jwt",
+        "vc.sd_jwt.number_of_decoys": "2",
+        "vc.credential_build_config.sd_jwt.visible_claims": "id,sub,iat,nbf,exp,jti",
+        "vc.credential_build_config.hash_algorithm": "sha-256",
+        "vc.credential_build_config.token_jws_type": "dc+sd-jwt",
+        "vc.display": "[{\"name\":\"Identity Credential\",\"locale\":\"en\"}]"
+      },
+      "protocolMappers": [
+        {
+          "name": "subject-id",
+          "protocol": "oid4vc",
+          "protocolMapper": "oid4vc-subject-id-mapper",
+          "config": { "claim.name": "sub", "userAttribute": "id" }
+        },
+        {
+          "name": "given-name",
+          "protocol": "oid4vc",
+          "protocolMapper": "oid4vc-user-attribute-mapper",
+          "config": { "claim.name": "given_name", "userAttribute": "firstName" }
+        },
+        {
+          "name": "family-name",
+          "protocol": "oid4vc",
+          "protocolMapper": "oid4vc-user-attribute-mapper",
+          "config": { "claim.name": "family_name", "userAttribute": "lastName" }
+        },
+        {
+          "name": "username",
+          "protocol": "oid4vc",
+          "protocolMapper": "oid4vc-user-attribute-mapper",
+          "config": { "claim.name": "username", "userAttribute": "username" }
+        },
+        {
+          "name": "email",
+          "protocol": "oid4vc",
+          "protocolMapper": "oid4vc-user-attribute-mapper",
+          "config": { "claim.name": "email", "userAttribute": "email" }
+        },
+        {
+          "name": "iat",
+          "protocol": "oid4vc",
+          "protocolMapper": "oid4vc-issued-at-time-claim-mapper",
+          "config": { "claim.name": "iat", "truncateToTimeUnit": "HOURS", "valueSource": "COMPUTE" }
+        },
+        {
+          "name": "nbf",
+          "protocol": "oid4vc",
+          "protocolMapper": "oid4vc-issued-at-time-claim-mapper",
+          "config": { "claim.name": "nbf", "valueSource": "COMPUTE" }
+        }
+      ]
     }
   ],
 
   "defaultDefaultClientScopes": ["roles", "profile", "email", "web-origins", "openid"],
-  "defaultOptionalClientScopes": ["offline_access", "address", "phone"],
+  "defaultOptionalClientScopes": ["offline_access"],
 
   "clients": [
     {
       "clientId": "account",
       "name": "${client_account}",
-      "rootUrl": "${authBaseUrl}",
       "baseUrl": "/realms/mint-demo/account/",
-      "surrogateAuthRequired": false,
       "enabled": true,
-      "alwaysDisplayInConsole": false,
-      "clientAuthenticatorType": "client-secret",
-      "defaultRoles": ["view-profile", "manage-account"],
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": false,
       "redirectUris": ["/realms/mint-demo/account/*"],
       "webOrigins": [],
-      "notBefore": 0,
-      "bearerOnly": false,
-      "consentRequired": false,
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
+      "defaultClientScopes": ["roles", "profile", "email", "web-origins"],
+      "optionalClientScopes": ["offline_access"]
+    },
+    {
+      "clientId": "account-console",
+      "name": "${client_account-console}",
+      "baseUrl": "/realms/mint-demo/account/",
+      "enabled": true,
       "publicClient": true,
-      "frontchannelLogout": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
       "protocol": "openid-connect",
-      "fullScopeAllowed": false
+      "fullScopeAllowed": true,
+      "redirectUris": ["/realms/mint-demo/account/*"],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+",
+        "oid4vci.enabled": "true"
+      },
+      "defaultClientScopes": ["roles", "profile", "email", "web-origins", "openid"],
+      "optionalClientScopes": ["offline_access", "IdentityCredential"],
+      "protocolMappers": [
+        {
+          "name": "audience-account",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "account",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "mint-client",
@@ -187,33 +341,86 @@
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "secret": "mint-client-secret",
-      "surrogateAuthRequired": false,
-      "alwaysDisplayInConsole": false,
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "publicClient": false,
-      "frontchannelLogout": false,
       "protocol": "openid-connect",
       "fullScopeAllowed": true,
       "bearerOnly": false,
       "consentRequired": false,
       "defaultClientScopes": ["roles", "profile", "email", "web-origins"],
       "optionalClientScopes": ["offline_access", "mint:capability"]
+    },
+    {
+      "clientId": "mint-ui",
+      "name": "Mint UI",
+      "description": "Browser UI for the /mint/token endpoint",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "redirectUris": ["*"],
+      "webOrigins": ["+"],
+      "defaultClientScopes": ["roles", "profile", "email", "web-origins", "openid"],
+      "optionalClientScopes": ["offline_access", "mint:capability"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "oid4vci-rest-api",
+      "name": "OID4VCI REST API",
+      "description": "Confidential client for OID4VCI credential issuance (pre-authorized + auth-code flows)",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "oid4vci-rest-api-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "redirectUris": ["*"],
+      "webOrigins": ["+"],
+      "defaultClientScopes": ["roles", "profile", "email", "web-origins", "openid"],
+      "optionalClientScopes": ["offline_access", "IdentityCredential"],
+      "attributes": {
+        "oid4vci.enabled": "true"
+      }
     }
   ],
 
   "users": [
     {
+      "username": "demo-user",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "demo@example.com",
+      "firstName": "Demo",
+      "lastName": "User",
+      "credentials": [
+        { "type": "password", "value": "password", "temporary": false }
+      ],
+      "realmRoles": ["token-minter", "default-roles-mint-demo", "credential-offer-create"]
+    },
+    {
       "username": "service-account-mint-client",
       "enabled": true,
       "emailVerified": true,
       "serviceAccountClientId": "mint-client",
-      "credentials": [],
-      "realmRoles": ["token-minter", "default-roles-mint-demo"],
-      "clientRoles": {},
-      "groups": []
+      "realmRoles": ["token-minter", "default-roles-mint-demo"]
     }
   ]
 }

@@ -2,6 +2,7 @@ package com.example.keycloak.mint;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -12,6 +13,8 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.representations.AccessToken;
 import org.keycloak.services.managers.AuthenticationManager;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
@@ -57,6 +60,24 @@ public class MintResource {
         this.tokenBuilder = tokenBuilder;
         this.maxPayloadBytes = maxPayloadBytes;
         this.maxPayloadDepth = maxPayloadDepth;
+    }
+
+    @GET
+    @Path("ui")
+    @Produces(MediaType.TEXT_HTML)
+    public Response ui() {
+        String realm = session.getContext().getRealm().getName();
+        String html = loadHtml().replace("{{REALM}}", realm);
+        return Response.ok(html, MediaType.TEXT_HTML + ";charset=UTF-8").build();
+    }
+
+    private String loadHtml() {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream("mint-ui.html")) {
+            if (is == null) throw new RuntimeException("mint-ui.html not found in classpath");
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load mint-ui.html", e);
+        }
     }
 
     @POST
